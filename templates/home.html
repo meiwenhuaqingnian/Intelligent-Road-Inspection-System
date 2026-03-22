@@ -3,24 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>道路损伤识别系统</title>
+    <title>道路损伤智能巡检系统</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        h1 { color: #333; margin-bottom: 10px; }
-        p { color: #666; margin-bottom: 30px; }
-        .menu { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 320px; }
-        .btn { display: block; text-align: center; padding: 15px; background: #007bff; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn:hover { background: #0056b3; transform: translateY(-2px); }
-        .btn.warning { background: #fd7e14; color: white; }
-        .btn.warning:hover { background: #e86b02; }
+        /* 全局现代字体与渐变背景 */
+        body { 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); /* 炫酷的蓝紫渐变底色 */
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            margin: 0; 
+            color: #2d3748;
+        }
+
+        /* 中央大容器：毛玻璃拟物化效果 */
+        .main-container { 
+            background: rgba(255, 255, 255, 0.85); 
+            padding: 60px 80px; 
+            border-radius: 24px; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15); 
+            backdrop-filter: blur(15px); 
+            text-align: center; 
+            width: 100%; 
+            max-width: 900px; 
+            box-sizing: border-box; 
+        }
+
+        h1 { 
+            font-size: 3.2rem; 
+            color: #1a202c; 
+            margin: 0 0 10px 0; 
+            font-weight: 800;
+            letter-spacing: 2px;
+        }
+
+        .subtitle { 
+            font-size: 1.3rem; 
+            color: #4a5568; 
+            margin-bottom: 50px; 
+            font-weight: 500;
+        }
+
+        /* 功能模块网格布局 */
+        .nav-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 40px; 
+        }
+
+        /* 响应式：手机端自动变单列 */
+        @media (max-width: 768px) { 
+            .nav-grid { grid-template-columns: 1fr; } 
+            .main-container { padding: 40px 30px; margin: 20px; }
+            h1 { font-size: 2.2rem; }
+        }
+
+        /* 巨型导航卡片通用样式 */
+        .nav-card { 
+            text-decoration: none; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 50px 30px; 
+            border-radius: 20px; 
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
+        }
+
+        .icon { 
+            font-size: 4.5rem; 
+            margin-bottom: 20px; 
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+
+        .nav-title { 
+            font-size: 2rem; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+        }
+
+        .nav-desc { 
+            font-size: 1.1rem; 
+            opacity: 0.85; 
+            line-height: 1.5; 
+        }
+
+        /* 📹 实时监控卡片 (蓝色系) */
+        .nav-card.live { 
+            background: linear-gradient(145deg, #ebf8ff, #bee3f8); 
+            color: #2b6cb0; 
+            border: 2px solid #90cdf4;
+        }
+        .nav-card.live:hover { 
+            transform: translateY(-10px); 
+            box-shadow: 0 20px 40px rgba(66, 153, 225, 0.25); 
+            background: linear-gradient(145deg, #fff, #bee3f8);
+        }
+
+        /* 📊 历史档案卡片 (橙色系) */
+        .nav-card.records { 
+            background: linear-gradient(145deg, #fffaf0, #feebc8); 
+            color: #c05621; 
+            border: 2px solid #fbd38d;
+        }
+        .nav-card.records:hover { 
+            transform: translateY(-10px); 
+            box-shadow: 0 20px 40px rgba(237, 137, 54, 0.25); 
+            background: linear-gradient(145deg, #fff, #feebc8);
+        }
     </style>
 </head>
 <body>
-    <h1>🛣️ 道路损伤识别系统</h1>
-    <p>请选择您要访问的功能模块：</p>
-    <div class="menu">
-        <a href="/detection" class="btn">📹 实时检测监控</a>
-        <a href="/severe" class="btn warning">📊 损伤分类记录档案 (含地图)</a>
+
+    <div class="main-container">
+        <h1>🛣️ 道路损伤智能巡检系统</h1>
+        <div class="subtitle">端云协同边缘计算调度台 / Cloud Command Center</div>
+
+        <div class="nav-grid">
+            <a href="/detection" class="nav-card live">
+                <div class="icon">📹</div>
+                <div class="nav-title">实时检测监控</div>
+                <div class="nav-desc">查看边缘端实时视野，下发巡检指令与底图坐标追踪</div>
+            </a>
+
+            <a href="/severe" class="nav-card records">
+                <div class="icon">📊</div>
+                <div class="nav-title">损伤记录档案</div>
+                <div class="nav-desc">按任务批次筛选历史记录，呈现高德交互式空间散点图</div>
+            </a>
+        </div>
     </div>
+
 </body>
 </html>
