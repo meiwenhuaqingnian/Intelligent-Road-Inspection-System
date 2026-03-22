@@ -1,0 +1,28 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# COCO8 dataset (first 8 images from COCO train2017) by Ultralytics
+# Documentation: https://docs.ultralytics.com/datasets/detect/coco8/
+# Example usage: yolo-vbn.yaml train data=coco8.yaml
+# parent
+# ├── ultralytics
+# └── datasets
+#     └── coco8  ← downloads here (1 MB)
+
+# Train/val/test_images sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: C:\sum\Life_sometimes\竞赛\大创-基于yolov8的道路损伤识别\道路损伤识别\test\test2\train_local\datasets\lumian # dataset root dir
+train: C:\sum\Life_sometimes\竞赛\大创-基于yolov8的道路损伤识别\道路损伤识别\test\test2\train_local\datasets\lumian\train # train images (relative to 'path') 4 images
+val: C:\sum\Life_sometimes\竞赛\大创-基于yolov8的道路损伤识别\道路损伤识别\test\test2\train_local\datasets\lumian\val # val images (relative to 'path') 4 images
+test: # test_images images (optional)
+
+# Classes
+names:
+  0: Crack
+  1: Manhole
+  2: Net
+  3: Pothole
+  4: Patch-Crack
+  5: Patch-Net
+  6: Patch-Pothole
+  7: other
+  8: Other
+{0: 'crack', 1: 'damage', 2: 'pothole', 3: 'pothole_water', 4: 'pothole_water_m'}
