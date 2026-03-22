@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时检测与地图监控</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .back-btn { text-decoration: none; color: #007bff; font-weight: bold; }
+        .status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 15px; font-weight: bold; color: white; background-color: #007bff; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.3s ease; }
+        .status-badge.online { background-color: #28a745; }
+        .status-badge.offline { background-color: #dc3545; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; max-width: 1200px; margin: 0 auto; justify-content: center; }
+        .panel { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); flex: 1; min-width: 300px; text-align: center; position: relative; }
+        .video-wrapper, .map-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 360px;}
+        .video-wrapper img, .map-wrapper img { width: 100%; height: auto; display: block; }
+        .offline-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); color: #ff4757; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; z-index: 10; transition: opacity 0.3s; }
+        .ctrl-btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; color: white; margin: 0 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;}
+        .ctrl-btn:hover { transform: translateY(-2px); }
+        .btn-start { background: #28a745; } .btn-pause { background: #ffc107; color: black; } .btn-stop { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="back-btn">← 返回首页</a>
+        <h2>📹 实时检测中控台</h2>
+        <p>连接状态: <span id="status-badge" class="status-badge">⚡ 寻找设备中...</span></p>
+        
+        <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 12px; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <button class="ctrl-btn btn-start" onclick="sendCommand('START')">▶️ 开始巡检</button>
+            <button class="ctrl-btn btn-pause" onclick="sendCommand('PAUSE')">⏸️ 暂停</button>
+            <button class="ctrl-btn btn-stop" onclick="sendCommand('STOP')">⏹️ 结束待机</button>
+            <div id="session-display" style="margin-top: 10px; font-family: monospace; color: #007bff; font-weight: bold; font-size: 16px;">当前指令: STOP (待机)</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h3 style="margin-top: 0;">AI 视觉监控</h3>
+            <div class="video-wrapper">
+                <div id="offline-mask" class="offline-mask" style="display: none;">⚠️ 设备未启动或已断开</div>
+                <img id="video-stream" src="/video_feed" alt="实时监控流">
+            </div>
+        </div>
+        <div class="panel">
+            <h3 style="margin-top: 0;">实时定位地图</h3>
+            <div class="map-wrapper"><img id="map-stream" src="/map_feed" alt="实时地图流"></div>
+        </div>
+    </div>
+
+    <script>
+        let isCurrentlyOnline = null;
+        function checkDeviceStatus() {
+            fetch('/api/status').then(res => res.json()).then(data => {
+                // 更新连接状态
+                if (data.online) {
+                    if(isCurrentlyOnline !== true) {
+                        document.getElementById('offline-mask').style.display = 'none';
+                        document.getElementById('status-badge').innerText = '🟢 设备在线';
+                        document.getElementById('status-badge').className = 'status-badge online';
+                        if(isCurrentlyOnline === false) {
+                            document.getElementById('video-stream').src = '/video_feed?' + new Date().getTime();
+                            document.getElementById('map-stream').src = '/map_feed?' + new Date().getTime();
+                        }
+                        isCurrentlyOnline = true;
+                    }
+                } else {
+                    if(isCurrentlyOnline !== false) {
+                        document.getElementById('offline-mask').style.display = 'flex';
+                        document.getElementById('status-badge').innerText = '🔴 设备离线';
+                        document.getElementById('status-badge').className = 'status-badge offline';
+                        isCurrentlyOnline = false;
+                    }
+                }
+                
+                // 实时同步云端的任务批次状态
+                let sessionText = data.command === "STOP" ? "STOP (待机中，不记录数据)" : (data.command + " | 批次: " + data.session_id);
+                document.getElementById('session-display').innerText = "当前状态: " + sessionText;
+            });
+        }
+
+        function sendCommand(cmd) {
+            if(!isCurrentlyOnline) { alert("设备离线，无法发送指令！"); return; }
+            fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ command: cmd }) });
+            setTimeout(checkDeviceStatus, 500); // 发送后立刻刷新一下状态
+        }
+
+        checkDeviceStatus();
+        setInterval(checkDeviceStatus, 3000);
+    </script>
+</body>
+</html>

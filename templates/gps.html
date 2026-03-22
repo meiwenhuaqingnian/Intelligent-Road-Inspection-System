@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS 定位上报</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        .status-box { margin: 20px auto; padding: 20px; max-width: 300px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .nav-link { text-decoration: none; color: #007bff; font-weight: bold; display: block; margin-bottom: 20px;}
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-link">← 返回首页</a>
+    <h2>📍 手机 GPS 定位节点</h2>
+    <p>请保持此页面在手机浏览器中打开，以持续提供定位数据。</p>
+    
+    <div class="status-box">
+        <p>状态: <span id="statusText">等待获取位置...</span></p>
+        <p>经度: <span id="lonText">--</span></p>
+        <p>纬度: <span id="latText">--</span></p>
+    </div>
+
+    <script>
+        const statusText = document.getElementById('statusText');
+        const lonText = document.getElementById('lonText');
+        const latText = document.getElementById('latText');
+
+        // 发送位置数据到后端
+        function sendLocation(lat, lon) {
+            fetch('/api/receive_location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: lat, longitude: lon })
+            })
+            .then(response => response.json())
+            .then(data => {
+                statusText.innerHTML = '<span class="success">上报成功</span>';
+            })
+            .catch(err => {
+                statusText.innerHTML = '<span class="error">网络错误，上报失败</span>';
+            });
+        }
+
+        // 监听位置变化
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    latText.innerText = lat.toFixed(6);
+                    lonText.innerText = lon.toFixed(6);
+                    sendLocation(lat, lon);
+                },
+                function(error) {
+                    statusText.innerHTML = '<span class="error">获取定位失败: ' + error.message + '</span>';
+                },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 } // 请求高精度定位
+            );
+        } else {
+            statusText.innerHTML = '<span class="error">您的浏览器不支持定位功能</span>';
+        }
+    </script>
+</body>
+</html>

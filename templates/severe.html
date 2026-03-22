@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>道路损伤记录大厅</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .back-btn { text-decoration: none; color: #007bff; font-weight: bold; }
+        #map-container { height: 350px; width: 100%; max-width: 1200px; margin: 0 auto 20px auto; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1; }
+        .toolbar { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;}
+        select { padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; font-weight: bold; outline: none;}
+        .tabs { display: flex; gap: 10px; }
+        .tab-btn { padding: 8px 16px; border: none; border-radius: 20px; background: #e4e6eb; color: #333; cursor: pointer; font-size: 15px; font-weight: bold; transition: 0.3s;}
+        .tab-btn.active.all { background: #007bff; color: white; }
+        .tab-btn.active.mild { background: #ffc107; color: black; }
+        .tab-btn.active.moderate { background: #fd7e14; color: white; }
+        .tab-btn.active.severe { background: #dc3545; color: white; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: 0.3s; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 200px; object-fit: cover; background: #f8f9fa; }
+        .card-body { padding: 15px; }
+        .tag { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; margin-bottom: 10px; }
+        .tag.轻微 { background: #ffc107; color: black; } .tag.中度 { background: #fd7e14; } .tag.严重 { background: #dc3545; }
+        .info-row { margin: 5px 0; font-size: 14px; color: #555; }
+        .no-image { height: 200px; display: flex; align-items: center; justify-content: center; background: #eee; color: #888; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="back-btn">← 返回系统首页</a>
+        <h2>📊 道路损伤分类记录档案</h2>
+    </div>
+    
+    <div id="map-container"></div>
+
+    <div class="toolbar">
+        <div>
+            <label for="session-filter" style="font-weight: bold;">巡检批次：</label>
+            <select id="session-filter" onchange="applyFilters()">
+                <option value="all">查看所有巡检记录</option>
+            </select>
+        </div>
+        <div class="tabs">
+            <button class="tab-btn active all" onclick="setSeverity('all', this)">全部</button>
+            <button class="tab-btn mild" onclick="setSeverity('轻微', this)">轻微</button>
+            <button class="tab-btn moderate" onclick="setSeverity('中度', this)">中度</button>
+            <button class="tab-btn severe" onclick="setSeverity('严重', this)">严重</button>
+        </div>
+    </div>
+
+    <div class="grid-container" id="records-container"></div>
+
+    <script>
+        let allRecords = [];
+        let currentSeverity = 'all';
+        let map, markersLayer;
+
+        function initMap() {
+            map = L.map('map-container').setView([43.8, 87.6], 12);
+            L.tileLayer('http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { subdomains: ['1', '2', '3', '4'] }).addTo(map);
+            markersLayer = L.layerGroup().addTo(map);
+        }
+
+        fetch('/api/records').then(res => res.json()).then(data => {
+            allRecords = data;
+            initMap();
+            
+            // 提取所有批次并填充到下拉框
+            const sessions = [...new Set(allRecords.map(r => r.session_id))].filter(s => s && s !== '未分类任务');
+            const selectBox = document.getElementById('session-filter');
+            sessions.forEach(s => {
+                let opt = document.createElement('option');
+                opt.value = s; opt.innerHTML = s;
+                selectBox.appendChild(opt);
+            });
+
+            applyFilters();
+        });
+
+        function setSeverity(level, btnElement) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+            currentSeverity = level;
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const selectedSession = document.getElementById('session-filter').value;
+            const container = document.getElementById('records-container');
+            container.innerHTML = ''; markersLayer.clearLayers();
+
+            let filtered = allRecords;
+            if (selectedSession !== 'all') filtered = filtered.filter(r => r.session_id === selectedSession);
+            if (currentSeverity !== 'all') filtered = filtered.filter(r => r.level === currentSeverity);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p style="text-align: center; color: #999; grid-column: 1 / -1;">此条件下暂无记录</p>`;
+                return;
+            }
+
+            let mapBounds = [];
+            filtered.forEach(record => {
+                const imgHtml = record.image ? `<img src="/images/${record.image}">` : `<div class="no-image">📸 仅记录文本坐标</div>`;
+                container.innerHTML += `<div class="card">${imgHtml}<div class="card-body"><span class="tag ${record.level}">${record.level}</span><div class="info-row"><strong>时间：</strong>${record.time}</div><div class="info-row"><strong>批次：</strong>${record.session_id}</div></div></div>`;
+                
+                let dotColor = record.level === '严重' ? '#dc3545' : record.level === '中度' ? '#fd7e14' : '#ffc107';
+                L.circleMarker([record.lat, record.lon], { radius: 8, fillColor: dotColor, color: '#fff', weight: 1, fillOpacity: 0.9 })
+                 .bindPopup(`<b>${record.level}损伤</b><br>批次: ${record.session_id}`)
+                 .addTo(markersLayer);
+                mapBounds.push([record.lat, record.lon]);
+            });
+            if (mapBounds.length > 0) map.fitBounds(mapBounds, { padding: [30, 30] });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>道路损伤识别系统</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        h1 { color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 30px; }
+        .menu { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 320px; }
+        .btn { display: block; text-align: center; padding: 15px; background: #007bff; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; transition: 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn:hover { background: #0056b3; transform: translateY(-2px); }
+        .btn.warning { background: #fd7e14; color: white; }
+        .btn.warning:hover { background: #e86b02; }
+    </style>
+</head>
+<body>
+    <h1>🛣️ 道路损伤识别系统</h1>
+    <p>请选择您要访问的功能模块：</p>
+    <div class="menu">
+        <a href="/detection" class="btn">📹 实时检测监控</a>
+        <a href="/severe" class="btn warning">📊 损伤分类记录档案 (含地图)</a>
+    </div>
+</body>
+</html>
