@@ -111,6 +111,33 @@
             box-shadow: 0 20px 40px rgba(237, 137, 54, 0.25); 
             background: linear-gradient(145deg, #fff, #feebc8);
         }
+
+        /* =========================================
+           新增：底部 GPS 快捷入口的专属样式 
+           ========================================= */
+        .footer-nav {
+            margin-top: 45px;
+            text-align: center;
+        }
+        
+        .btn-secondary {
+            display: inline-block;
+            color: #2b6cb0;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            background-color: #e8f4ff;
+            padding: 14px 30px;
+            border-radius: 12px;
+            border: 1px solid #bee3f8;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #bee3f8;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(66, 153, 225, 0.15);
+        }
     </style>
 </head>
 <body>
@@ -132,6 +159,16 @@
                 <div class="nav-desc">按任务批次筛选历史记录，呈现高德交互式空间散点图</div>
             </a>
         </div>
+
+        <!-- =========================================
+             新增：底部 GPS 快捷入口模块
+             ========================================= -->
+        <div class="footer-nav">
+            <a href="/gps" class="btn-secondary">
+                📍 进入 GPS 辅助定位与设备调试页
+            </a>
+        </div>
+        
     </div>
 
 </body>

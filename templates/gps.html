@@ -10,11 +10,21 @@
         .success { color: green; font-weight: bold; }
         .error { color: red; font-weight: bold; }
         .nav-link { text-decoration: none; color: #007bff; font-weight: bold; display: block; margin-bottom: 20px;}
+        /* 新增网址链接的样式 */
+        .url-link { color: #007bff; font-weight: bold; word-break: break-all; text-decoration: none; }
+        .url-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <a href="/" class="nav-link">← 返回首页</a>
     <h2>📍 手机 GPS 定位节点</h2>
+    
+    <!-- 新增：专门用于显示树莓派网址的区域 -->
+    <div class="status-box">
+        <p>🔗 树莓派副驾驶网址:</p>
+        <p><a id="piUrl" class="url-link" href="#" target="_blank">等待树莓派开机...</a></p>
+    </div>
+
     <p>请保持此页面在手机浏览器中打开，以持续提供定位数据。</p>
     
     <div class="status-box">
@@ -57,11 +67,27 @@
                 function(error) {
                     statusText.innerHTML = '<span class="error">获取定位失败: ' + error.message + '</span>';
                 },
-                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 } // 请求高精度定位
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
             );
         } else {
             statusText.innerHTML = '<span class="error">您的浏览器不支持定位功能</span>';
         }
+
+        // ==========================================
+        // 新增：每 3 秒获取一次树莓派最新的网址
+        // ==========================================
+        function fetchPiUrl() {
+            fetch('/api/get_pi_url')
+                .then(response => response.json())
+                .then(data => {
+                    const urlEl = document.getElementById('piUrl');
+                    urlEl.innerText = data.pi_url;
+                    urlEl.href = data.pi_url.startsWith('http') ? data.pi_url : '#';
+                })
+                .catch(err => console.log("等待获取网址中..."));
+        }
+        setInterval(fetchPiUrl, 3000);
+        fetchPiUrl(); // 页面加载时立刻执行一次
     </script>
 </body>
 </html>

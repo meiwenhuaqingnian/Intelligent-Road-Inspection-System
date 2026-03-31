@@ -20,8 +20,11 @@
         .tab-btn.active.moderate { background: #fd7e14; color: white; }
         .tab-btn.active.severe { background: #dc3545; color: white; }
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
-        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: 0.3s; }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        
+        /* 卡片增加了 hover 时的鼠标变成小手，提示可点击 */
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: 0.3s; cursor: pointer; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.15); border: 1px solid #007bff; }
+        
         .card img { width: 100%; height: 200px; object-fit: cover; background: #f8f9fa; }
         .card-body { padding: 15px; }
         .tag { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; margin-bottom: 10px; }
@@ -59,10 +62,24 @@
         let allRecords = [];
         let currentSeverity = 'all';
         let map, markersLayer;
+        
+        // 核心一：建立大头针实例映射表 (类似指针数组)
+        let markerRegistry = {};
 
         function initMap() {
-            map = L.map('map-container').setView([43.8, 87.6], 12);
-            L.tileLayer('http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { subdomains: ['1', '2', '3', '4'] }).addTo(map);
+            // 核心二：解除最大缩放限制，maxZoom 提升到 21，并去除右下角水印
+            map = L.map('map-container', { 
+                maxZoom: 21,
+                attributionControl: false 
+            }).setView([43.8, 87.6], 12);
+
+            // 核心三：配置 maxNativeZoom，实现高倍数下的“数码拉伸变焦”
+            L.tileLayer('http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { 
+                subdomains: ['1', '2', '3', '4'],
+                maxZoom: 21,
+                maxNativeZoom: 18  // 高德真实图片源最大只到 18 级
+            }).addTo(map);
+            
             markersLayer = L.layerGroup().addTo(map);
         }
 
@@ -92,7 +109,11 @@
         function applyFilters() {
             const selectedSession = document.getElementById('session-filter').value;
             const container = document.getElementById('records-container');
-            container.innerHTML = ''; markersLayer.clearLayers();
+            
+            // 切换条件时，清空容器和映射表
+            container.innerHTML = ''; 
+            markersLayer.clearLayers();
+            markerRegistry = {}; 
 
             let filtered = allRecords;
             if (selectedSession !== 'all') filtered = filtered.filter(r => r.session_id === selectedSession);
@@ -104,17 +125,48 @@
             }
 
             let mapBounds = [];
-            filtered.forEach(record => {
-                const imgHtml = record.image ? `<img src="/images/${record.image}">` : `<div class="no-image">📸 仅记录文本坐标</div>`;
-                container.innerHTML += `<div class="card">${imgHtml}<div class="card-body"><span class="tag ${record.level}">${record.level}</span><div class="info-row"><strong>时间：</strong>${record.time}</div><div class="info-row"><strong>批次：</strong>${record.session_id}</div></div></div>`;
+            filtered.forEach((record, index) => { // 引入 index
                 
+                // 1. 生成卡片 HTML，并注入 onclick 点击事件和坐标参数
+                const imgHtml = record.image ? `<img src="/images/${record.image}">` : `<div class="no-image">📸 仅记录文本坐标</div>`;
+                container.innerHTML += `
+                    <div class="card" onclick="focusToMarker(${index}, ${record.lat}, ${record.lon})">
+                        ${imgHtml}
+                        <div class="card-body">
+                            <span class="tag ${record.level}">${record.level}</span>
+                            <div class="info-row"><strong>时间：</strong>${record.time}</div>
+                            <div class="info-row"><strong>批次：</strong>${record.session_id}</div>
+                        </div>
+                    </div>`;
+                
+                // 2. 生成地图大头针实例
                 let dotColor = record.level === '严重' ? '#dc3545' : record.level === '中度' ? '#fd7e14' : '#ffc107';
-                L.circleMarker([record.lat, record.lon], { radius: 8, fillColor: dotColor, color: '#fff', weight: 1, fillOpacity: 0.9 })
+                let marker = L.circleMarker([record.lat, record.lon], { radius: 8, fillColor: dotColor, color: '#fff', weight: 1, fillOpacity: 0.9 })
                  .bindPopup(`<b>${record.level}损伤</b><br>批次: ${record.session_id}`)
                  .addTo(markersLayer);
+                
+                // 3. 将大头针实例存入“哈希表”缓存
+                markerRegistry[index] = marker;
+                
                 mapBounds.push([record.lat, record.lon]);
             });
             if (mapBounds.length > 0) map.fitBounds(mapBounds, { padding: [30, 30] });
+        }
+
+        // 核心四：接收点击信号，执行地图飞行动画
+        function focusToMarker(index, lat, lon) {
+            // 将地图强行拉近放大到 19 级 (原先默认最大只能到 18 级)
+            map.flyTo([lat, lon], 19, {
+                animate: true,
+                duration: 1.2 // 动画持续 1.2 秒
+            });
+
+            // 延迟 1 秒等待动画快落地时，再弹出气泡，视觉效果最佳
+            setTimeout(() => {
+                if (markerRegistry[index]) {
+                    markerRegistry[index].openPopup();
+                }
+            }, 1000); 
         }
     </script>
 </body>
