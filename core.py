@@ -1,5 +1,6 @@
 """
-道路损伤识别与定位核心模块 (物联网中控调度版)
+道路损伤识别与定位核心模块 (边缘端智能控制版)
+特性: 状态机按需拉起推理 / 模型懒加载 / 异步心跳上报
 """
 
 import math
@@ -29,8 +30,8 @@ except ImportError:
 
 CLOUD_SERVER_URL = "http://39.102.84.218:5000/upload"         
 CLOUD_STREAM_URL = "http://39.102.84.218:5000/update_stream"  
-CLOUD_COMMAND_URL = "http://39.102.84.218:5000/api/command"  # 🚀 新增拉取地址
-HEARTBEAT_INTERVAL = 5.0  
+CLOUD_COMMAND_URL = "http://39.102.84.218:5000/api/command"  
+HEARTBEAT_INTERVAL = 1.0  # 🚀 优化为1秒/帧，提升中控台画面流畅度
 
 WEB_SERVICE_KEY = os.environ.get("AMAP_KEY", "3b56e23a509f36ab6770e5a420efa95b")
 MAP_FILENAME = "map_result.png"
@@ -94,15 +95,14 @@ def lonlat_to_pixel(target_lon, target_lat, center_lon, center_lat, zoom, width,
 def upload_to_cloud_async(frame: np.ndarray, lon: float, lat: float, severity: int) -> None:
     def _upload():
         try:
-            # 🚀 带着批次号上报
             data = {'longitude': lon, 'latitude': lat, 'severity': severity, 'timestamp': time.time(), 'session_id': global_session_id}
             if severity >= 2:
                 success, encoded_image = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
                 if not success: return
                 files = {'image': ('damage.jpg', encoded_image.tobytes(), 'image/jpeg')}
-                resp = requests.post(CLOUD_SERVER_URL, files=files, data=data, timeout=5)
+                requests.post(CLOUD_SERVER_URL, files=files, data=data, timeout=5)
             else:
-                resp = requests.post(CLOUD_SERVER_URL, data=data, timeout=5)
+                requests.post(CLOUD_SERVER_URL, data=data, timeout=5)
         except Exception: pass
     threading.Thread(target=_upload, daemon=True).start()
 
@@ -218,7 +218,7 @@ def run_gps_reader() -> None:
 def run_command_polling() -> None:
     """🚀 轮询线程：拉取云端任务指令"""
     global global_command, global_session_id
-    print("[中控] 监听网络指令线程已启动...")
+    print("[边缘端] 监听网络指令线程已启动...")
     while True:
         try:
             resp = requests.get(CLOUD_COMMAND_URL, timeout=3)
@@ -226,10 +226,12 @@ def run_command_polling() -> None:
                 data = resp.json()
                 global_command = data.get("command", "STOP")
                 global_session_id = data.get("session_id", "")
-        except: pass
+        except Exception as e: 
+            pass # 网络断开时，保持最后的状态，或者也可以强制置为 STOP
         time.sleep(2.0)
 
 def run_heartbeat_loop() -> None:
+    """🚀 心跳线程：不管是否推理，持续向云端上报当前画面与定位"""
     global latest_frame
     while True:
         time.sleep(HEARTBEAT_INTERVAL)
@@ -237,6 +239,7 @@ def run_heartbeat_loop() -> None:
         current_lon, current_lat = get_location()
         if frame_to_send is not None and current_lon is not None and current_lat is not None:
             try:
+                # 压缩质量降低到 30，保证传输极快，降低带宽高压
                 success, encoded_image = cv2.imencode('.jpg', frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 30])
                 if success:
                     files = {'frame': ('heartbeat.jpg', encoded_image.tobytes(), 'image/jpeg')}
@@ -261,6 +264,7 @@ def run_map_loop() -> None:
             current_count = latest_detection_count
             frame_to_save = latest_frame.copy() if latest_frame is not None else None
 
+        # 只有在发现损伤时，才进行地图绘制和上报异常
         if current_lon is not None and current_lat is not None and current_count > 0:
             px, py = lonlat_to_pixel(current_lon, current_lat, center_lon, center_lat, ZOOM_LEVEL, MAP_WIDTH, MAP_HEIGHT)
             if 0 <= px < MAP_WIDTH and 0 <= py < MAP_HEIGHT:
@@ -277,7 +281,6 @@ def run_map_loop() -> None:
                 else: zones[my_zone] = max(zones[my_zone], current_count)
 
                 severity = zones[my_zone]
-                # 只要发现 1 处异常，立刻触发策略 A 上报云端
                 if severity >= 1:
                     if my_zone not in saved_severe_locations and frame_to_save is not None:
                         upload_to_cloud_async(frame_to_save, current_lon, current_lat, severity)
@@ -295,8 +298,10 @@ def run_map_loop() -> None:
 
 def run_detection_loop() -> None:
     global latest_frame, latest_detection_count
-    model = YOLO_ONNX_Engine(MODEL_PATH)
     cam = CameraStream()
+    model = None  # 🚀 初始时绝对不加载模型，节约内存
+
+    print("[边缘端] 硬件初始化完成，进入待命状态...")
 
     while True:
         success, frame = cam.read()
@@ -304,16 +309,24 @@ def run_detection_loop() -> None:
             time.sleep(0.01)
             continue
 
-        # 🚀 状态机逻辑：听令行事
+        # 🚀 状态机主逻辑：听令行事
         if global_command == "RUNNING":
+            if model is None:
+                print("[系统] 接收到执行指令，正在向内存载入 YOLO 权重...")
+                model = YOLO_ONNX_Engine(MODEL_PATH)
+            
+            # 执行高算力 AI 推理
             annotated_frame, count = model.predict(frame)
+            
         else:
-            # 摸鱼待机模式：直接传回原画面并打水印，不跑 AI 推理以大幅降低发热
+            # 摸鱼待机模式：纯监控画面，无推理算力消耗
             annotated_frame = frame.copy()
             count = 0
+            
+            # 在画面上打上醒目的状态水印，便于排错
             status_text = "STANDBY (READY)" if global_command == "STOP" else "PAUSED"
-            cv2.putText(annotated_frame, status_text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
-            time.sleep(0.1)
+            cv2.putText(annotated_frame, status_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2, cv2.LINE_AA)
+            time.sleep(0.05) # 降低空转帧率，进一步降温
 
         with lock:
             latest_frame = annotated_frame
@@ -348,11 +361,11 @@ if __name__ == "__main__":
     threading.Thread(target=lambda: flask_app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False, ssl_context='adhoc'), daemon=True).start()
 
     # 3. 启动后台服务线程
-    threading.Thread(target=run_command_polling, daemon=True).start() # 🚀 中控轮询
+    threading.Thread(target=run_command_polling, daemon=True).start() 
     threading.Thread(target=run_map_loop, daemon=True).start()
     threading.Thread(target=run_heartbeat_loop, daemon=True).start()
 
-    # 4. 阻塞主线程执行 AI 或待机
+    # 4. 阻塞主线程执行 AI 核心循环
     try:
         run_detection_loop()
     except KeyboardInterrupt:
